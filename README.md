@@ -88,3 +88,54 @@ Send `/reset` to start a new conversation.
 **Limitations:** the bot reads text messages only. Conversations are kept in memory,
 so they're lost when the server restarts. Run the bot as a single process: with several
 workers, each one keeps separate memory.
+
+---
+
+# Daily availability message
+
+`daily_availability.py` sends your availability to your clients on WhatsApp every day:
+
+> Hi Acme, here is my availability for Thursday, 19 November: 9:00 AM - 12:00 PM,
+> 2:00 PM - 5:00 PM. Reply to this message to book a time.
+
+## 1. Set your schedule
+
+Edit `availability.json`:
+- `timezone`: your time zone, e.g. `Asia/Kolkata`, `Europe/London`, `America/New_York`.
+- `weekly`: your usual hours for each day, written like `"09:00-12:00"`. Use `[]` for days off.
+- `exceptions`: specific dates that differ from the usual week, e.g. `"2026-12-25": []` for a holiday.
+- `send_for`: `"today"` (send in the morning) or `"tomorrow"` (send the evening before).
+
+Run `python daily_availability.py --preview` to see exactly what will be sent.
+
+## 2. Get the message template approved (one time)
+
+WhatsApp only lets a business start a conversation with a template that Meta has approved.
+In **Meta Business Manager → WhatsApp Manager → Message templates → Create template**:
+
+- **Category:** Utility
+- **Name:** `daily_availability`
+- **Language:** English (`en`)
+- **Body:**
+  `Hi {{1}}, here is my availability for {{2}}: {{3}}. Reply to this message to book a time.`
+- Sample values: `Acme`, `Thursday, 19 November`, `9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM`
+
+If you use a different name or language, change `template_name` / `template_language` in `availability.json`.
+
+## 3. Send it every day automatically (free, using GitHub)
+
+The workflow in `.github/workflows/daily-availability.yml` runs the sender once a day.
+
+1. In the GitHub repo, open **Settings → Secrets and variables → Actions → New repository secret**
+   and add:
+   - `WHATSAPP_TOKEN`: a permanent System User access token (the 24-hour test token will stop working)
+   - `WHATSAPP_PHONE_NUMBER_ID`: your WhatsApp phone number ID
+   - `CLIENTS`: client names and numbers with country code, e.g. `Acme:919876543210;Bob:447700900000`
+2. Change the `cron` time in the workflow file to when you want it sent. It's written in **UTC**.
+3. Merge the branch into your default branch. GitHub only runs scheduled workflows from there.
+4. To test, open **Actions → Send daily availability on WhatsApp → Run workflow**.
+
+Keeping client numbers in the `CLIENTS` secret keeps them out of the repository.
+
+**Other ways to run it:** `python daily_availability.py --send` sends once, right now.
+`python daily_availability.py --daemon 08:00` keeps running and sends every day at 08:00 in your time zone.
