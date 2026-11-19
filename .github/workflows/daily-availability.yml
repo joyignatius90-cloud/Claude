@@ -2,10 +2,10 @@ name: Send daily availability on WhatsApp
 
 on:
   schedule:
-    # Times are in UTC. 03:00 UTC = 8:30 AM India, 3:00 AM London, 10:00 PM New York (previous day).
-    # Change this to the time you want. GitHub can start scheduled runs a few minutes late.
-    - cron: "0 3 * * *"
-  workflow_dispatch: {}   # adds a "Run workflow" button for sending by hand
+    # Runs every hour; the script only sends during the hour starting at
+    # "send_time" in the "timezone" from availability.json (10:00 by default).
+    - cron: "0 * * * *"
+  workflow_dispatch: {}   # "Run workflow" button: sends immediately
 
 jobs:
   send:
@@ -16,8 +16,15 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install requests
-      - run: python daily_availability.py --send
+      - name: Send
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            python daily_availability.py --send
+          else
+            python daily_availability.py --send-if-due
+          fi
         env:
           WHATSAPP_TOKEN: ${{ secrets.WHATSAPP_TOKEN }}
           WHATSAPP_PHONE_NUMBER_ID: ${{ secrets.WHATSAPP_PHONE_NUMBER_ID }}
           CLIENTS: ${{ secrets.CLIENTS }}
+          GROUPS: ${{ secrets.GROUPS }}

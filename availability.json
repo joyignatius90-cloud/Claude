@@ -1,21 +1,31 @@
 {
   "timezone": "UTC",
+  "send_time": "10:00",
   "send_for": "today",
   "template_name": "daily_availability",
   "template_language": "en",
   "clients": [
-    { "name": "Client", "phone": "REPLACE_WITH_CLIENT_NUMBER" }
+    {
+      "name": "Client",
+      "phone": "REPLACE_WITH_CLIENT_NUMBER"
+    }
   ],
   "weekly": {
-    "monday":    ["09:00-12:00", "14:00-17:00"],
-    "tuesday":   ["09:00-12:00", "14:00-17:00"],
+    "monday": ["09:00-12:00", "14:00-17:00"],
+    "tuesday": ["09:00-12:00", "14:00-17:00"],
     "wednesday": ["09:00-12:00", "14:00-17:00"],
-    "thursday":  ["09:00-12:00", "14:00-17:00"],
-    "friday":    ["09:00-12:00", "14:00-16:00"],
-    "saturday":  [],
-    "sunday":    []
+    "thursday": ["09:00-12:00", "14:00-17:00"],
+    "friday": ["09:00-12:00", "14:00-16:00"],
+    "saturday": [],
+    "sunday": []
   },
   "exceptions": {
     "2026-12-25": []
-  }
+  },
+  "groups": [
+    {
+      "name": "My group",
+      "group_id": "REPLACE_WITH_GROUP_ID"
+    }
+  ]
 }

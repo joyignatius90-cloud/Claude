@@ -6,7 +6,8 @@ Your schedule lives in availability.json: a normal weekly schedule, plus
 Usage:
   python daily_availability.py --preview      show the message, send nothing
   python daily_availability.py --send         send it now
-  python daily_availability.py --daemon 08:00 keep running, send every day at 08:00
+  python daily_availability.py --send-if-due  send only if it's send_time (used by the hourly GitHub run)
+  python daily_availability.py --daemon       keep running, send every day at send_time
 """
 
 import argparse
@@ -31,6 +32,12 @@ def load_config() -> dict:
         config["clients"] = [
             {"name": name.strip(), "phone": phone.strip()}
             for name, phone in (item.split(":", 1) for item in os.environ["CLIENTS"].split(";") if ":" in item)
+        ]
+    # Same for groups: GROUPS="Team:120363000000000000;Other:120363111111111111"
+    if os.environ.get("GROUPS"):
+        config["groups"] = [
+            {"name": name.strip(), "group_id": gid.strip()}
+            for name, gid in (item.split(":", 1) for item in os.environ["GROUPS"].split(";") if ":" in item)
         ]
     return config
 
@@ -68,12 +75,13 @@ def preview_text(config: dict, client_name: str) -> str:
     return f"Hi {name}, here is my availability for {day}: {slots}. Reply to this message to book a time."
 
 
-def send_template(config: dict, phone: str, params: tuple[str, str, str]) -> None:
+def send_template(config: dict, to: str, params: tuple[str, str, str], group: bool = False) -> None:
     token = os.environ["WHATSAPP_TOKEN"]
     phone_id = os.environ["WHATSAPP_PHONE_NUMBER_ID"]
     payload = {
         "messaging_product": "whatsapp",
-        "to": phone,
+        **({"recipient_type": "group"} if group else {}),
+        "to": to,
         "type": "template",
         "template": {
             "name": config.get("template_name", "daily_availability"),
@@ -106,7 +114,26 @@ def send_all(config: dict) -> int:
         except Exception as e:  # keep going for the other clients
             print(f"Failed for {client['name']}: {e}")
             failures += 1
+    for grp in config.get("groups", []):
+        group_id = grp.get("group_id", "")
+        if not group_id or group_id.startswith("REPLACE"):
+            print(f"Skipping group {grp['name']}: group ID not set")
+            continue
+        try:
+            send_template(config, group_id, build_parts(config, grp["name"]), group=True)
+            print(f"Sent to group {grp['name']}")
+        except Exception as e:
+            print(f"Failed for group {grp['name']}: {e}")
+            failures += 1
     return failures
+
+
+def is_due(config: dict) -> bool:
+    """True during the hour that starts at send_time, in your time zone."""
+    now = datetime.now(ZoneInfo(config.get("timezone", "UTC")))
+    hour, minute = map(int, config.get("send_time", "10:00").split(":"))
+    start = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+    return start <= now < start + timedelta(hours=1)
 
 
 def run_daemon(config: dict, send_at: str) -> None:
@@ -127,17 +154,25 @@ def main() -> None:
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--preview", action="store_true")
     group.add_argument("--send", action="store_true")
-    group.add_argument("--daemon", metavar="HH:MM")
+    group.add_argument("--send-if-due", action="store_true")
+    group.add_argument("--daemon", metavar="HH:MM", nargs="?", const="")
     args = parser.parse_args()
 
     config = load_config()
     if args.preview:
         for client in config.get("clients", []):
             print(f"To {client['name']} ({client['phone']}):\n  {preview_text(config, client['name'])}\n")
+        for grp in config.get("groups", []):
+            print(f"To group {grp['name']} ({grp.get('group_id')}):\n  {preview_text(config, grp['name'])}\n")
     elif args.send:
         sys.exit(1 if send_all(config) else 0)
+    elif args.send_if_due:
+        if not is_due(config):
+            print(f"Not send time yet ({config.get('send_time')} {config.get('timezone')}); nothing sent.")
+            return
+        sys.exit(1 if send_all(config) else 0)
     else:
-        run_daemon(config, args.daemon)
+        run_daemon(config, args.daemon or config.get("send_time", "10:00"))
 
 
 if __name__ == "__main__":

@@ -102,6 +102,7 @@ workers, each one keeps separate memory.
 
 Edit `availability.json`:
 - `timezone`: your time zone, e.g. `Asia/Kolkata`, `Europe/London`, `America/New_York`.
+- `send_time`: when to send each day, in that time zone. Set to `"10:00"` (10 AM).
 - `weekly`: your usual hours for each day, written like `"09:00-12:00"`. Use `[]` for days off.
 - `exceptions`: specific dates that differ from the usual week, e.g. `"2026-12-25": []` for a holiday.
 - `send_for`: `"today"` (send in the morning) or `"tomorrow"` (send the evening before).
@@ -131,11 +132,26 @@ The workflow in `.github/workflows/daily-availability.yml` runs the sender once 
    - `WHATSAPP_TOKEN`: a permanent System User access token (the 24-hour test token will stop working)
    - `WHATSAPP_PHONE_NUMBER_ID`: your WhatsApp phone number ID
    - `CLIENTS`: client names and numbers with country code, e.g. `Acme:919876543210;Bob:447700900000`
-2. Change the `cron` time in the workflow file to when you want it sent. It's written in **UTC**.
+   - `GROUPS` (optional): group names and IDs, e.g. `Team:120363000000000000` (see *Sending to groups*)
+2. The workflow runs every hour, and the script only sends during the hour that starts at
+   `send_time` in your `timezone`, so you never have to work out UTC.
 3. Merge the branch into your default branch. GitHub only runs scheduled workflows from there.
 4. To test, open **Actions → Send daily availability on WhatsApp → Run workflow**.
 
 Keeping client numbers in the `CLIENTS` secret keeps them out of the repository.
 
+## Sending to WhatsApp groups
+
+WhatsApp's official API **cannot post into groups you created in the WhatsApp app**.
+It can only post to groups that your business number created through Meta's Groups API, and:
+- your number must be an **Official Business Account** (the verified badge). Meta must approve this first.
+- each group can have at most **8 participants**, who join through an invite link.
+
+Once you have such a group, put its group ID in `groups` in `availability.json` or in the
+`GROUPS` secret, and the same daily message is sent to it.
+
+**If you can't get an Official Business Account:** send the message to each client one-to-one
+through `CLIENTS` instead. Each client still gets it every day at 10 AM.
+
 **Other ways to run it:** `python daily_availability.py --send` sends once, right now.
-`python daily_availability.py --daemon 08:00` keeps running and sends every day at 08:00 in your time zone.
+`python daily_availability.py --daemon` keeps running and sends every day at `send_time` in your time zone.
