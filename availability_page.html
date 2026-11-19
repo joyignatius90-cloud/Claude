@@ -1,0 +1,175 @@
+<title>Availability Sender</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap">
+<style>
+/* Layout: one narrow column like a phone chat. The message preview is styled as a WhatsApp-style bubble; controls sit below it. */
+:root {
+  --bg: #f3f6f4; --surface: #ffffff; --fg: #17211c; --muted: #5d6b64; --line: #dbe3de;
+  --accent: #128c5a; --accent-fg: #ffffff; --bubble: #dcf3e4; --off: #a3adb0;
+  --font-display: "Space Grotesk", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f1613; --surface: #17211c; --fg: #e6eee9; --muted: #95a59d; --line: #2a3832;
+  --accent: #2fbf7f; --accent-fg: #06140d; --bubble: #1d3a2b; --off: #5f6b66; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0f1613; --surface: #17211c; --fg: #e6eee9; --muted: #95a59d; --line: #2a3832;
+  --accent: #2fbf7f; --accent-fg: #06140d; --bubble: #1d3a2b; --off: #5f6b66; color-scheme: dark }
+
+body { background: var(--bg); color: var(--fg); font-family: var(--font-body); font-size: 15px; line-height: 1.5;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+main { max-width: 560px; margin: 0 auto; padding-block: 28px 48px; display: grid; gap: 22px; }
+h1 { font-family: var(--font-display); font-size: 26px; font-weight: 600; margin: 0; text-wrap: balance; }
+h2 { font-family: var(--font-display); font-size: 17px; font-weight: 600; margin: 0; }
+.sub { color: var(--muted); margin: 4px 0 0; }
+.label { font-size: 12px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: transparent; color: var(--fg); font: inherit; padding: 8px 16px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+
+.bubble { background: var(--bubble); border-radius: 4px 14px 14px 14px; padding: 14px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 12px 18px; border-radius: 12px;
+  font: inherit; font-weight: 600; text-decoration: none; cursor: pointer; border: 1px solid var(--line); background: var(--surface); color: var(--fg); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-fg); flex: 1 1 220px; }
+.btn:focus-visible, .seg button:focus-visible, input:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.hint { color: var(--muted); font-size: 13px; margin: 0; }
+
+.panel { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 14px; }
+.day { display: grid; grid-template-columns: 92px 1fr; gap: 10px; align-items: center; }
+.day span { font-weight: 500; }
+.day.is-today span { color: var(--accent); font-weight: 600; }
+input, textarea { width: 100%; box-sizing: border-box; font: inherit; color: var(--fg); background: var(--bg);
+  border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+input::placeholder { color: var(--off); }
+textarea { min-height: 64px; resize: vertical; }
+.row { display: grid; gap: 6px; }
+@media (max-width: 420px) { .day { grid-template-columns: 1fr; gap: 4px; } }
+</style>
+
+<main>
+  <header>
+    <h1>Availability Sender</h1>
+    <p class="sub">Your daily availability message, ready for WhatsApp. Tap send, choose your client or group, and send.</p>
+  </header>
+
+  <section class="row" aria-label="Message">
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap">
+      <span class="label">Message for</span>
+      <div class="seg" role="group" aria-label="Which day">
+        <button id="btn-today" type="button" aria-pressed="true">Today</button>
+        <button id="btn-tomorrow" type="button" aria-pressed="false">Tomorrow</button>
+      </div>
+    </div>
+    <div class="bubble" id="preview" aria-live="polite"></div>
+  </section>
+
+  <div class="actions">
+    <a class="btn primary" id="send" href="https://wa.me/" target="_blank" rel="noopener">Send on WhatsApp</a>
+    <button class="btn" id="copy" type="button">Copy message</button>
+  </div>
+  <p class="hint" id="status">Opens WhatsApp with the message filled in. Pick the chat or group, then tap send. WhatsApp only sends it when you do.</p>
+
+  <section class="panel" aria-labelledby="hours-h">
+    <div>
+      <h2 id="hours-h">Your usual hours</h2>
+      <p class="hint">Separate time ranges with commas, e.g. <code>9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM</code>. Leave a day empty if you're off. Saved in this browser.</p>
+    </div>
+    <div id="days" style="display:grid;gap:10px"></div>
+  </section>
+
+  <section class="panel" aria-labelledby="wording-h">
+    <h2 id="wording-h">Wording</h2>
+    <div class="row">
+      <label class="label" for="greeting">Greeting</label>
+      <input id="greeting" type="text" value="Hello">
+    </div>
+    <div class="row">
+      <label class="label" for="closing">Closing line</label>
+      <textarea id="closing">Reply here to book a time.</textarea>
+    </div>
+    <div class="row">
+      <label class="label" for="offday">Message when you're off</label>
+      <input id="offday" type="text" value="I'm not available on this day.">
+    </div>
+  </section>
+</main>
+
+<script>
+const DAYS = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"];
+const DEFAULT_HOURS = {
+  Monday: "9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM",
+  Tuesday: "9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM",
+  Wednesday: "9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM",
+  Thursday: "9:00 AM - 12:00 PM, 2:00 PM - 5:00 PM",
+  Friday: "9:00 AM - 12:00 PM, 2:00 PM - 4:00 PM",
+  Saturday: "", Sunday: ""
+};
+const KEY = "availability-sender-v1";
+let state = { hours: { ...DEFAULT_HOURS }, greeting: "Hello", closing: "Reply here to book a time.", offday: "I'm not available on this day." };
+try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) state = { ...state, ...saved, hours: { ...DEFAULT_HOURS, ...saved.hours } }; } catch (e) {}
+function save() { try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {} }
+
+let offset = 0; // 0 = today, 1 = tomorrow
+const $ = id => document.getElementById(id);
+
+function targetDate() { const d = new Date(); d.setDate(d.getDate() + offset); return d; }
+function dayName(d) { return DAYS[(d.getDay() + 6) % 7]; }
+
+function buildMessage() {
+  const d = targetDate();
+  const when = d.toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" });
+  const slots = (state.hours[dayName(d)] || "").split(",").map(s => s.trim()).filter(Boolean);
+  const lines = [`${state.greeting.trim() || "Hello"},`, ""];
+  if (slots.length) {
+    lines.push(`My availability for ${when}:`);
+    slots.forEach(s => lines.push(`• ${s}`));
+  } else {
+    lines.push(`${when}: ${state.offday.trim()}`);
+  }
+  if (state.closing.trim()) lines.push("", state.closing.trim());
+  return lines.join("\n");
+}
+
+function render() {
+  const msg = buildMessage();
+  $("preview").textContent = msg;
+  $("send").href = "https://wa.me/?text=" + encodeURIComponent(msg);
+  $("btn-today").setAttribute("aria-pressed", offset === 0);
+  $("btn-tomorrow").setAttribute("aria-pressed", offset === 1);
+  const today = dayName(targetDate());
+  document.querySelectorAll(".day").forEach(el => el.classList.toggle("is-today", el.dataset.day === today));
+}
+
+const daysEl = $("days");
+DAYS.forEach(day => {
+  const row = document.createElement("div");
+  row.className = "day"; row.dataset.day = day;
+  const id = "hours-" + day.toLowerCase();
+  row.innerHTML = `<span><label for="${id}">${day}</label></span><input id="${id}" type="text" placeholder="Off">`;
+  const input = row.querySelector("input");
+  input.value = state.hours[day];
+  input.addEventListener("input", () => { state.hours[day] = input.value; save(); render(); });
+  daysEl.appendChild(row);
+});
+["greeting","closing","offday"].forEach(k => {
+  $(k).value = state[k];
+  $(k).addEventListener("input", () => { state[k] = $(k).value; save(); render(); });
+});
+$("btn-today").addEventListener("click", () => { offset = 0; render(); });
+$("btn-tomorrow").addEventListener("click", () => { offset = 1; render(); });
+
+$("copy").addEventListener("click", () => {
+  const msg = buildMessage();
+  const done = t => { $("status").textContent = t; };
+  try {
+    navigator.clipboard.writeText(msg).then(() => done("Copied. Paste it into your WhatsApp chat or group."),
+      () => { selectPreview(); done("Couldn't copy automatically. The message is selected; copy it yourself."); });
+  } catch (e) { selectPreview(); done("Couldn't copy automatically. The message is selected; copy it yourself."); }
+});
+function selectPreview() { const r = document.createRange(); r.selectNodeContents($("preview")); const s = getSelection(); s.removeAllRanges(); s.addRange(r); }
+
+render();
+</script>
